@@ -1,0 +1,150 @@
+// Reads the next character and sets the lexer to that position.
+func (l *Lexer) readChar() {
+    // If the character is last in the file, set the current character
+    // to 0. This is helpful for determining the end of file.
+    if l.readPosition >= len(l.input) {
+        l.ch = 0
+    } else {
+        l.ch = l.input[l.readPosition]
+    }
+    l.position = l.readPosition
+    l.readPosition += 1
+}
+
+// Major function ahead!
+func (l *Lexer) NextToken() token.Token {
+    // This will be the token for our current character.
+    var tok token.Token
+
+    // We don't want those stinky whitespaces to be counted in our program.
+    // This might not be very useful if we were writing ruby or python-like language.
+    l.skipWhitespace()
+
+    // Let's determine the token for each character
+    // I think most of it is self explanatory, but I'll just go over once.
+    switch l.ch {
+    case '=':
+        // Here, we are peeking at the next character because we also want to check for `==` operator.
+        // If the next immediate character is not `=`, we just classify this as ASSIGN operator.
+        if l.peekChar() == '=' {
+            ch := l.ch
+            l.readChar()
+            tok = token.Token{Type: token.EQ, Literal: string(ch) + string(l.ch)}
+        } else {
+            tok = newToken(token.ASSIGN, l.ch)
+        }
+    case '+':
+        tok = newToken(token.PLUS, l.ch)
+    case '(':
+        tok = newToken(token.LPAREN, l.ch)
+    case ')':
+        tok = newToken(token.RPAREN, l.ch)
+    case '{':
+        tok = newToken(token.LBRACE, l.ch)
+    case '}':
+        tok = newToken(token.RBRACE, l.ch)
+    case ',':
+        tok = newToken(token.COMMA, l.ch)
+    case ';':
+        tok = newToken(token.SEMICOLON, l.ch)
+    case '/':
+        tok = newToken(token.SLASH, l.ch)
+    case '*':
+        tok = newToken(token.ASTERICKS, l.ch)
+    case '-':
+        tok = newToken(token.MINUS, l.ch)
+    case '<':
+        tok = newToken(token.LT, l.ch)
+    case '>':
+        tok = newToken(token.GT, l.ch)
+    case '!':
+        // Again, we are peeking at the next character because we also want to check for `!=` operator.
+        if l.peekChar() == '=' {
+            ch := l.ch
+            l.readChar()
+            tok = token.Token{Type: token.NOT_EQ, Literal: string(ch) + string(l.ch)}
+        } else {
+            tok = newToken(token.BANG, l.ch)
+        }
+    case 0:
+        // This is important. Remember how we set our character code to 0 if there were no more tokens to be seen?
+        // This is where we declare that the end of file has reached.
+        tok.Literal = ""
+        tok.Type = token.EOF
+    default:
+        // Now, why this default case? If you notice above, we have never really declared how do we determine
+        // keywords, identifiers and int. So we go on a little adventure of checking if the identifier or number
+        // has any next words that match up in our token file.
+        // If yes, we give the type exactly equals to the token.
+        // If not, we give it a simple identifier.
+        if isLetter(l.ch) {
+            tok.Literal = l.readIdentifier()
+            tok.Type = token.LookupIdent(tok.Literal)
+            // Notice how we are returning in this function right here.
+            // This is because we don't want to read the next character without returning
+            // this particular token. If this behavior wasn't implemented, there would be a lot
+            // of bugs.
+            return tok
+        } else if isDigit(l.ch) {
+            tok.Type = token.INT
+            tok.Literal = l.readNumber()
+            return tok
+        } else {
+            // If nothing else matches up, we declare that character as illegal.
+            tok = newToken(token.ILLEGAL, l.ch)
+        }
+    }
+
+    // We keep reading the next characters.
+    l.readChar()
+    return tok
+}
+
+// Look above for how exactly this is used.
+// It simply reads the complete identifier and
+// passes it token's LookupIdent function.
+func (l *Lexer) readIdentifier() string {
+    position := l.position
+    for isLetter(l.ch) {
+        l.readChar()
+    }
+    return l.input[position:l.position]
+}
+
+// We take a peek at the next char.
+// Helpful for determining the operators.
+func (l *Lexer) peekChar() byte {
+    if l.readPosition >= len(l.input) {
+        return 0
+    } else {
+        return l.input[l.readPosition]
+    }
+}
+
+func (l *Lexer) readNumber() string {
+    position := l.position
+    for isDigit(l.ch) {
+        l.readChar()
+    }
+    return l.input[position:l.position]
+}
+
+func isLetter(ch byte) bool {
+    return 'a' <= ch && ch <= 'z' || 'A' <= ch && ch <= 'Z' || ch == '_'
+}
+
+func isDigit(ch byte) bool {
+    return '0' <= ch && ch <= '9'
+}
+
+func newToken(tokenType token.TokenType, ch byte) token.Token {
+    return token.Token{Type: tokenType, Literal: string(ch)}
+}
+
+// Note how we check not just for whitespace, but also for tabs, newlines and
+// windows based end of lines.
+func (l *Lexer) skipWhitespace() {
+    for l.ch == ' ' || l.ch == '\t' || l.ch == '\n' || l.ch == '\r' {
+        l.readChar()
+    }
+}
